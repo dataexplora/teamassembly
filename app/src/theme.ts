@@ -2,7 +2,7 @@ import { createTheme } from '@mui/material/styles'
 
 export const theme = createTheme({
   colorSchemes: {
-    // Brand colors from the Assembly logo: violet #5b3df5, coral dot #ff6b5e
+    // Brand colors from the Assemblie logo: violet #5b3df5, coral dot #ff6b5e
     light: {
       palette: {
         primary: { main: '#5b3df5' },

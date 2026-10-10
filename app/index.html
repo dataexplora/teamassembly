@@ -6,20 +6,33 @@
     <link rel="icon" type="image/png" sizes="48x48" href="/icon-48.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="canonical" href="https://assemblie.link/" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="theme-color" content="#5b3df5" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-title" content="Assembly" />
-    <meta name="description" content="Instant team rooms. Scan, type your name, collaborate." />
-    <meta property="og:title" content="Assembly" />
-    <meta property="og:description" content="Instant team rooms. Scan, type your name, collaborate." />
-    <meta property="og:image" content="https://teamassembly-853e4.web.app/icon-512.png" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Assemblie" />
+    <meta name="application-name" content="Assemblie" />
+    <meta name="description" content="Instant team rooms for people who just met. Scan the QR, type your name, start collaborating. No sign up." />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Assemblie" />
+    <meta property="og:title" content="Assemblie" />
+    <meta property="og:description" content="Instant team rooms for people who just met. Scan the QR, type your name, start collaborating. No sign up." />
+    <meta property="og:url" content="https://assemblie.link/" />
+    <meta property="og:image" content="https://assemblie.link/icon-512.png" />
+    <meta name="twitter:card" content="summary" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" />
-    <title>Assembly</title>
+    <title>Assemblie</title>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}))
+      }
+    </script>
   </body>
 </html>

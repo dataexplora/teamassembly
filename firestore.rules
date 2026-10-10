@@ -31,14 +31,30 @@ service cloud.firestore {
 
       match /members/{uid} {
         allow read: if isMember(teamId) || (signedIn() && request.auth.uid == uid);
-        // Kicked users cannot come back through the same QR
+        // Kicked users cannot come back through the same QR; the name must be claimed
+        // in the same batch (names/{nameKey} owned by the caller) so names stay unique
         allow create, update: if signedIn() && request.auth.uid == uid
           && !isBanned(uid)
           && get(/databases/$(database)/documents/teams/$(teamId)).data.get('closed', false) == false
           && request.resource.data.name is string
           && request.resource.data.name.size() > 0
-          && request.resource.data.name.size() <= 40;
+          && request.resource.data.name.size() <= 40
+          && request.resource.data.nameKey is string
+          && getAfter(/databases/$(database)/documents/teams/$(teamId)/names/$(request.resource.data.nameKey)).data.uid == request.auth.uid;
         allow delete: if signedIn() && (request.auth.uid == uid || isAdmin(teamId));
+      }
+
+      // Unique display names per team (case-insensitive key computed by the client).
+      // Readable before joining so the join form can say 'taken'.
+      match /names/{key} {
+        allow read: if signedIn();
+        // create fails on an existing doc, which is what makes the claim atomic
+        allow create: if signedIn() && request.resource.data.uid == request.auth.uid
+          && getAfter(/databases/$(database)/documents/teams/$(teamId)/members/$(request.auth.uid)).data.nameKey == key;
+        // Re-claiming our own name (rejoin after a failed cleanup)
+        allow update: if signedIn() && resource.data.uid == request.auth.uid
+          && request.resource.data.uid == request.auth.uid;
+        allow delete: if signedIn() && (resource == null || resource.data.uid == request.auth.uid || isAdmin(teamId));
       }
 
       match /banned/{uid} {
@@ -62,8 +78,27 @@ service cloud.firestore {
           && request.resource.data.name.size() > 0
           && request.resource.data.name.size() <= 30
           && request.resource.data.emoji is string
-          && request.resource.data.emoji.size() <= 16;
+          && request.resource.data.emoji.size() <= 16
+          && request.resource.data.get('kind', 'chat') in ['chat', 'todo'];
         allow delete: if isAdmin(teamId);
+      }
+
+      // Shared checklist: anyone in the team can add, tick, claim; creator or admin deletes
+      match /channels/{channelId}/todos/{todoId} {
+        allow read: if isMember(teamId);
+        allow create: if isMember(teamId) && channelExists(channelId)
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0
+          && request.resource.data.text.size() <= 200
+          && request.resource.data.done == false;
+        // Only the admin signs a task off as done; anyone can claim or drop it
+        allow update: if (isAdmin(teamId)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['done', 'doneBy', 'assignee'])
+            && request.resource.data.done is bool)
+          || (isMember(teamId)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['assignee']));
+        allow delete: if signedIn() && (resource.data.createdBy == request.auth.uid || isAdmin(teamId));
       }
 
       match /channels/{channelId}/messages/{messageId} {

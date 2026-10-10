@@ -38,17 +38,19 @@ export type Message = {
   createdAt: Date | null
 }
 
-export type Channel = { id: string; name: string; emoji: string; custom: boolean; createdBy?: string }
+// 'chat' shows messages; 'todo' shows a shared checklist instead
+export type ChannelKind = 'chat' | 'todo'
+export type Channel = { id: string; name: string; emoji: string; kind: ChannelKind; custom: boolean; createdBy?: string }
 export type ChannelId = string
 
 // Every team starts with these (no docs needed). Ids are kept from v1 so old teams keep
 // their history; keep the id list in sync with BUILTIN_CHANNELS in firestore.rules.
 export const DEFAULT_CHANNELS: Channel[] = [
-  { id: 'general', name: 'General', emoji: '💬', custom: false },
-  { id: 'brainstorming', name: 'Ideas', emoji: '💡', custom: false },
-  { id: 'tasks', name: 'To-do', emoji: '✅', custom: false },
-  { id: 'resources', name: 'Links & files', emoji: '📎', custom: false },
-  { id: 'random', name: 'Chill', emoji: '🎉', custom: false },
+  { id: 'general', name: 'General', emoji: '💬', kind: 'chat', custom: false },
+  { id: 'brainstorming', name: 'Ideas', emoji: '💡', kind: 'chat', custom: false },
+  { id: 'tasks', name: 'To-do', emoji: '✅', kind: 'todo', custom: false },
+  { id: 'resources', name: 'Links & files', emoji: '📎', kind: 'chat', custom: false },
+  { id: 'random', name: 'Chill', emoji: '🎉', kind: 'chat', custom: false },
 ]
 
 // Built-ins first, then channels people created, oldest first
@@ -63,7 +65,14 @@ export function subscribeChannels(teamId: string, cb: (channels: Channel[]) => v
         .map((d) => {
           const data = d.data({ serverTimestamps: 'estimate' })
           return {
-            channel: { id: d.id, name: data.name, emoji: data.emoji, custom: true, createdBy: data.createdBy },
+            channel: {
+              id: d.id,
+              name: data.name,
+              emoji: data.emoji,
+              kind: (data.kind === 'todo' ? 'todo' : 'chat') as ChannelKind,
+              custom: true,
+              createdBy: data.createdBy,
+            },
             at: data.createdAt?.toMillis?.() ?? Date.now(),
           }
         })
@@ -75,22 +84,99 @@ export function subscribeChannels(teamId: string, cb: (channels: Channel[]) => v
   )
 }
 
-export async function createChannel(teamId: string, name: string, emoji: string): Promise<string> {
+export async function createChannel(teamId: string, name: string, emoji: string, kind: ChannelKind): Promise<string> {
   const user = await ensureUser()
   const ref = await addDoc(collection(db, 'teams', teamId, 'channels'), {
     name: name.trim(),
     emoji,
+    kind,
     createdBy: user.uid,
     createdAt: serverTimestamp(),
   })
   return ref.id
 }
 
-// Admin only: wipes the channel's messages, then the channel itself
+// Admin only: wipes the channel's messages and tasks, then the channel itself
 export async function deleteChannel(teamId: string, channelId: string): Promise<void> {
-  const ids = await listIds('teams', teamId, 'channels', channelId, 'messages')
-  await deleteAll(ids.map((id) => ['teams', teamId, 'channels', channelId, 'messages', id]))
+  await deleteAll(await channelContentPaths(teamId, channelId))
   await deleteDoc(doc(db, 'teams', teamId, 'channels', channelId))
+}
+
+async function channelContentPaths(teamId: string, channelId: string): Promise<string[][]> {
+  const paths: string[][] = []
+  for (const sub of ['messages', 'todos']) {
+    const ids = await listIds('teams', teamId, 'channels', channelId, sub)
+    paths.push(...ids.map((id) => ['teams', teamId, 'channels', channelId, sub, id]))
+  }
+  return paths
+}
+
+export type Todo = {
+  id: string
+  text: string
+  createdBy: string
+  done: boolean
+  doneBy?: { uid: string; name: string }
+  assignee?: { uid: string; name: string }
+  createdAt: Date | null
+}
+
+function todosRef(teamId: string, channelId: string) {
+  return collection(db, 'teams', teamId, 'channels', channelId, 'todos')
+}
+
+export function subscribeTodos(teamId: string, channelId: string, cb: (todos: Todo[]) => void) {
+  return onSnapshot(
+    todosRef(teamId, channelId),
+    (snap) =>
+      cb(
+        snap.docs
+          .map((d) => {
+            const data = d.data({ serverTimestamps: 'estimate' })
+            return {
+              id: d.id,
+              text: data.text,
+              createdBy: data.createdBy,
+              done: !!data.done,
+              doneBy: data.doneBy ?? undefined,
+              assignee: data.assignee ?? undefined,
+              createdAt: data.createdAt?.toDate() ?? null,
+            }
+          })
+          .sort((a, b) => (a.createdAt?.getTime() ?? Date.now()) - (b.createdAt?.getTime() ?? Date.now())),
+      ),
+    () => {},
+  )
+}
+
+export async function addTodo(teamId: string, channelId: string, text: string): Promise<void> {
+  const user = await ensureUser()
+  await addDoc(todosRef(teamId, channelId), {
+    text: text.trim(),
+    createdBy: user.uid,
+    done: false,
+    doneBy: null,
+    assignee: null,
+    createdAt: serverTimestamp(),
+  })
+}
+
+export async function setTodoDone(teamId: string, channelId: string, id: string, me: Member, done: boolean) {
+  await updateDoc(doc(todosRef(teamId, channelId), id), {
+    done,
+    doneBy: done ? { uid: me.uid, name: me.name } : null,
+  })
+}
+
+// Pass null to drop the task back in the pool
+export async function setTodoAssignee(teamId: string, channelId: string, id: string, who: Member | null) {
+  await updateDoc(doc(todosRef(teamId, channelId), id), {
+    assignee: who ? { uid: who.uid, name: who.name } : null,
+  })
+}
+
+export async function deleteTodo(teamId: string, channelId: string, id: string) {
+  await deleteDoc(doc(todosRef(teamId, channelId), id))
 }
 
 const TEAM_LIFETIME_MS = 24 * 60 * 60 * 1000
@@ -153,9 +239,8 @@ export async function renameTeam(teamId: string, name: string): Promise<void> {
   await updateDoc(doc(db, 'teams', teamId), { name: name.trim() })
 }
 
-export async function leaveTeam(teamId: string): Promise<void> {
-  const user = await ensureUser()
-  await deleteDoc(doc(db, 'teams', teamId, 'members', user.uid))
+export async function leaveTeam(teamId: string, me: Member): Promise<void> {
+  await removeMember(teamId, me)
 }
 
 async function deleteAll(paths: string[][]) {
@@ -184,15 +269,14 @@ export async function deleteTeam(teamId: string): Promise<void> {
   const customIds = await listIds('teams', teamId, 'channels')
   const channelIds = [...DEFAULT_CHANNELS.map((c) => c.id), ...customIds]
   const messagePaths: string[][] = []
-  for (const c of channelIds) {
-    const ids = await listIds('teams', teamId, 'channels', c, 'messages')
-    messagePaths.push(...ids.map((id) => ['teams', teamId, 'channels', c, 'messages', id]))
-  }
+  for (const c of channelIds) messagePaths.push(...(await channelContentPaths(teamId, c)))
   const bannedIds = await listIds('teams', teamId, 'banned')
+  const nameIds = await listIds('teams', teamId, 'names')
   await deleteAll([
     ...messagePaths,
     ...customIds.map((id) => ['teams', teamId, 'channels', id]),
     ...bannedIds.map((id) => ['teams', teamId, 'banned', id]),
+    ...nameIds.map((id) => ['teams', teamId, 'names', id]),
   ])
 
   const memberIds = (await listIds('teams', teamId, 'members')).filter((id) => id !== user.uid)
@@ -201,9 +285,12 @@ export async function deleteTeam(teamId: string): Promise<void> {
   await deleteDoc(doc(db, 'teams', teamId))
 }
 
-// Remove: they are out, but can rejoin by scanning the QR again
-export async function removeMember(teamId: string, uid: string): Promise<void> {
-  await deleteDoc(doc(db, 'teams', teamId, 'members', uid))
+// Remove (or leave): they are out and their name is free again; they can rejoin with the QR
+export async function removeMember(teamId: string, member: Member): Promise<void> {
+  const batch = writeBatch(db)
+  batch.delete(doc(db, 'teams', teamId, 'members', member.uid))
+  batch.delete(doc(db, 'teams', teamId, 'names', nameKey(member.name)))
+  await batch.commit()
 }
 
 // Ban: remove and block rejoining (same browser) until the admin unbans
@@ -211,6 +298,7 @@ export async function banMember(teamId: string, member: Member): Promise<void> {
   const batch = writeBatch(db)
   batch.set(doc(db, 'teams', teamId, 'banned', member.uid), { name: member.name, at: serverTimestamp() })
   batch.delete(doc(db, 'teams', teamId, 'members', member.uid))
+  batch.delete(doc(db, 'teams', teamId, 'names', nameKey(member.name)))
   await batch.commit()
 }
 
@@ -227,12 +315,36 @@ export function subscribeBanned(teamId: string, cb: (banned: Member[]) => void) 
   )
 }
 
+// Doc id for the names index: case-insensitive, and '/' is not allowed in Firestore ids
+export function nameKey(name: string): string {
+  return 'n_' + name.trim().toLowerCase().replace(/\//g, '_')
+}
+
+export class NameTakenError extends Error {}
+
+// Claims the name and creates the membership atomically, so two people tapping Join
+// with the same name at the same moment cannot both get it (rules enforce the pairing)
 export async function joinTeam(teamId: string, name: string): Promise<void> {
   const user = await ensureUser()
-  await setDoc(doc(db, 'teams', teamId, 'members', user.uid), {
-    name: name.trim(),
+  const clean = name.trim()
+  const key = nameKey(clean)
+  const taken = await getDoc(doc(db, 'teams', teamId, 'names', key))
+  if (taken.exists() && taken.data().uid !== user.uid) throw new NameTakenError(clean)
+  const batch = writeBatch(db)
+  batch.set(doc(db, 'teams', teamId, 'names', key), { uid: user.uid })
+  batch.set(doc(db, 'teams', teamId, 'members', user.uid), {
+    name: clean,
+    nameKey: key,
     joinedAt: serverTimestamp(),
   })
+  try {
+    await batch.commit()
+  } catch (err) {
+    // Lost the race: someone claimed the name between our check and the commit
+    const now = await getDoc(doc(db, 'teams', teamId, 'names', key)).catch(() => null)
+    if (now?.exists() && now.data().uid !== user.uid) throw new NameTakenError(clean)
+    throw err
+  }
 }
 
 export function subscribeMembers(teamId: string, cb: (members: Member[]) => void) {

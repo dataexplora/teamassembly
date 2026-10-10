@@ -1,27 +1,43 @@
 import { useState } from 'react'
-import { Box, Button, ButtonBase, Dialog, DialogActions, DialogContent, DialogTitle, TextField } from '@mui/material'
+import {
+  Box,
+  Button,
+  ButtonBase,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  TextField,
+  ToggleButton,
+  ToggleButtonGroup,
+} from '@mui/material'
+import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded'
+import ChecklistRoundedIcon from '@mui/icons-material/ChecklistRounded'
+import type { ChannelKind } from '../api'
 
 const EMOJIS = ['💬', '💡', '✅', '📎', '🎉', '🎨', '🛠️', '📣', '🐛', '📊', '🧪', '🚀', '🍕', '🎯', '📚', '❓']
 
 type Props = {
   open: boolean
   onClose: () => void
-  onCreate: (name: string, emoji: string) => Promise<void>
+  onCreate: (name: string, emoji: string, kind: ChannelKind) => Promise<void>
 }
 
 export default function NewChannelDialog({ open, onClose, onCreate }: Props) {
   const [name, setName] = useState('')
   const [emoji, setEmoji] = useState(EMOJIS[0]!)
   const [busy, setBusy] = useState(false)
+  const [kind, setKind] = useState<ChannelKind>('chat')
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim() || busy) return
     setBusy(true)
     try {
-      await onCreate(name, emoji)
+      await onCreate(name, emoji, kind)
       setName('')
       setEmoji(EMOJIS[0]!)
+      setKind('chat')
       onClose()
     } catch {
       // parent shows the error
@@ -35,6 +51,21 @@ export default function NewChannelDialog({ open, onClose, onCreate }: Props) {
       <Box component="form" onSubmit={submit}>
         <DialogTitle>New channel</DialogTitle>
         <DialogContent>
+          <ToggleButtonGroup
+            value={kind}
+            exclusive
+            fullWidth
+            size="small"
+            onChange={(_, v: ChannelKind | null) => v && setKind(v)}
+            sx={{ mb: 2, mt: 0.5 }}
+          >
+            <ToggleButton value="chat" sx={{ gap: 1 }}>
+              <ChatBubbleOutlineRoundedIcon fontSize="small" /> Chat
+            </ToggleButton>
+            <ToggleButton value="todo" sx={{ gap: 1 }}>
+              <ChecklistRoundedIcon fontSize="small" /> Checklist
+            </ToggleButton>
+          </ToggleButtonGroup>
           <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 0.5, mb: 2, mt: 0.5 }}>
             {EMOJIS.map((e) => (
               <ButtonBase
@@ -56,7 +87,7 @@ export default function NewChannelDialog({ open, onClose, onCreate }: Props) {
           </Box>
           <TextField
             label="Channel name"
-            placeholder="e.g. Design"
+            placeholder={kind === 'todo' ? 'e.g. Shopping list' : 'e.g. Design'}
             value={name}
             onChange={(e) => setName(e.target.value)}
             slotProps={{ htmlInput: { maxLength: 30 } }}

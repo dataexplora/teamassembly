@@ -29,6 +29,7 @@ import ManageAccountsRoundedIcon from '@mui/icons-material/ManageAccountsRounded
 import AddRoundedIcon from '@mui/icons-material/AddRounded'
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded'
 import NewChannelDialog from '../components/NewChannelDialog'
+import TodoBoard from '../components/TodoBoard'
 import {
   DEFAULT_CHANNELS,
   createChannel,
@@ -41,6 +42,7 @@ import {
   leaveTeam,
   getTeam,
   joinTeam,
+  NameTakenError,
   sendMessage,
   sendPoll,
   subscribeMembers,
@@ -191,7 +193,7 @@ export default function Room() {
     <Chat
       team={team}
       me={me!}
-      onLeave={() => exit(() => leaveTeam(teamId))}
+      onLeave={() => exit(() => leaveTeam(teamId, me!))}
       onDelete={() => exit(() => deleteTeam(teamId))}
     />
   )
@@ -201,6 +203,7 @@ function JoinForm({ team, onJoined }: { team: Team; onJoined: (m: Member) => voi
   const [name, setName] = useState(loadMyName())
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [taken, setTaken] = useState<string | null>(null)
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -208,13 +211,18 @@ function JoinForm({ team, onJoined }: { team: Team; onJoined: (m: Member) => voi
     if (!clean || busy) return
     setBusy(true)
     setError(null)
+    setTaken(null)
     try {
       await joinTeam(team.id, clean)
       saveMyName(clean)
       onJoined({ uid: auth.currentUser!.uid, name: clean })
     } catch (err) {
-      console.error(err)
-      setError('Could not join. Try again.')
+      if (err instanceof NameTakenError) {
+        setTaken(clean)
+      } else {
+        console.error(err)
+        setError('Could not join. Try again.')
+      }
       setBusy(false)
     }
   }
@@ -230,7 +238,12 @@ function JoinForm({ team, onJoined }: { team: Team; onJoined: (m: Member) => voi
         <TextField
           label="Your name"
           value={name}
-          onChange={(e) => setName(e.target.value)}
+          onChange={(e) => {
+            setName(e.target.value)
+            setTaken(null)
+          }}
+          error={!!taken}
+          helperText={taken ? `"${taken}" is already taken in this team. Try another name.` : ' '}
           slotProps={{ htmlInput: { maxLength: 40 } }}
           autoFocus
           fullWidth
@@ -272,10 +285,12 @@ function Chat({ team, me, onLeave, onDelete }: ChatProps) {
     if (!current) setChannel('general')
   }, [current])
   const channelLabel = current ? `${current.emoji} ${current.name}` : ''
+  const isTodo = current?.kind === 'todo'
   useEffect(() => {
     setMessages([])
+    if (isTodo) return
     return subscribeMessages(team.id, channel, setMessages)
-  }, [team.id, channel])
+  }, [team.id, channel, isTodo])
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages.length])
@@ -364,6 +379,10 @@ function Chat({ team, me, onLeave, onDelete }: ChatProps) {
         </Box>
       </AppBar>
 
+      {current?.kind === 'todo' ? (
+        <TodoBoard teamId={team.id} channelId={channel} me={me} isAdmin={isAdmin} onError={setError} />
+      ) : (
+      <>
       <Box sx={{ flex: 1, overflowY: 'auto', px: 2, py: 2 }}>
         {messages.length === 0 && (
           <Typography color="text.secondary" sx={{ textAlign: 'center', mt: 6 }}>
@@ -482,6 +501,8 @@ function Chat({ team, me, onLeave, onDelete }: ChatProps) {
           <SendRoundedIcon />
         </IconButton>
       </Box>
+      </>
+      )}
 
       <TeamDialog
         open={showMembers}
@@ -513,9 +534,9 @@ function Chat({ team, me, onLeave, onDelete }: ChatProps) {
       <NewChannelDialog
         open={showNewChannel}
         onClose={() => setShowNewChannel(false)}
-        onCreate={async (name, emoji) => {
+        onCreate={async (name, emoji, kind) => {
           try {
-            const id = await createChannel(team.id, name, emoji)
+            const id = await createChannel(team.id, name, emoji, kind)
             setChannel(id)
           } catch (err) {
             console.error(err)

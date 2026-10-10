@@ -36,10 +36,10 @@ export default function Home() {
           <Box
             component="img"
             src="/icon-192.png"
-            alt="Assembly logo"
+            alt="Assemblie logo"
             sx={{ width: 96, height: 96, borderRadius: '24px', boxShadow: '0 8px 24px rgba(91, 61, 245, 0.35)', mb: 1 }}
           />
-          <Typography variant="h4" sx={{ fontWeight: 800 }}>Assembly</Typography>
+          <Typography variant="h4" sx={{ fontWeight: 800 }}>Assemblie</Typography>
           <Typography color="text.secondary">
             Spin up a room, show the QR, start working together. No sign up.
           </Typography>

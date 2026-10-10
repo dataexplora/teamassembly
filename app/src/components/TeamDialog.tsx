@@ -93,7 +93,7 @@ export default function TeamDialog({ open, onClose, team, members, me, onError, 
     setWorking(true)
     try {
       if (kind === 'ban') await banMember(team.id, member)
-      else await removeMember(team.id, member.uid)
+      else await removeMember(team.id, member)
     } catch (err) {
       console.error(err)
       onError(`Could not ${kind} ${member.name}.`)
