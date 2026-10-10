@@ -24,7 +24,7 @@ export default function ShareQr({ teamId, teamName }: { teamId: string; teamName
 
   async function share() {
     try {
-      await navigator.share({ title: teamName, text: `Join ${teamName} on Team Assembly`, url })
+      await navigator.share({ title: teamName, text: `Join ${teamName} on Assembly`, url })
     } catch {
       // user cancelled
     }

@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Alert, Box, Button, Stack, TextField, Typography } from '@mui/material'
-import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded'
 import { createTeam } from '../api'
 import { saveMyName, loadMyName } from '../identity'
 
@@ -34,8 +33,13 @@ export default function Home() {
     <Box sx={{ minHeight: '100dvh', display: 'flex', flexDirection: 'column', justifyContent: 'center', px: 3, py: 6 }}>
       <Stack spacing={4} component="form" onSubmit={onCreate} sx={{ maxWidth: 420, width: '100%', mx: 'auto' }}>
         <Stack spacing={1} sx={{ alignItems: "center", textAlign: "center" }}>
-          <GroupsRoundedIcon color="primary" sx={{ fontSize: 64 }} />
-          <Typography variant="h4" sx={{ fontWeight: 800 }}>Team Assembly</Typography>
+          <Box
+            component="img"
+            src="/icon-192.png"
+            alt="Assembly logo"
+            sx={{ width: 96, height: 96, borderRadius: '24px', boxShadow: '0 8px 24px rgba(91, 61, 245, 0.35)', mb: 1 }}
+          />
+          <Typography variant="h4" sx={{ fontWeight: 800 }}>Assembly</Typography>
           <Typography color="text.secondary">
             Spin up a room, show the QR, start working together. No sign up.
           </Typography>

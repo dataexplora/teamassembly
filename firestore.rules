@@ -13,20 +13,95 @@ service cloud.firestore {
       // Anyone with the QR link can see the team name before joining
       allow read: if signedIn();
       allow create: if signedIn() && request.resource.data.createdBy == request.auth.uid;
-      allow update, delete: if isAdmin(teamId);
+      // Admin can rename at any time; createdBy and expiry stay fixed
+      allow update: if isAdmin(teamId) && (
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name'])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 60)
+        // First step of deleteTeam: flag it so every client leaves at once
+        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['closed'])
+          && request.resource.data.closed == true)
+      );
+      allow delete: if isAdmin(teamId);
+
+      function isBanned(uid) {
+        return exists(/databases/$(database)/documents/teams/$(teamId)/banned/$(uid));
+      }
 
       match /members/{uid} {
         allow read: if isMember(teamId) || (signedIn() && request.auth.uid == uid);
+        // Kicked users cannot come back through the same QR
         allow create, update: if signedIn() && request.auth.uid == uid
+          && !isBanned(uid)
+          && get(/databases/$(database)/documents/teams/$(teamId)).data.get('closed', false) == false
           && request.resource.data.name is string
           && request.resource.data.name.size() > 0
           && request.resource.data.name.size() <= 40;
         allow delete: if signedIn() && (request.auth.uid == uid || isAdmin(teamId));
       }
 
-      match /messages/{messageId} {
+      match /banned/{uid} {
+        allow read: if isAdmin(teamId) || (signedIn() && request.auth.uid == uid);
+        // The admin cannot ban themselves
+        allow create, delete: if isAdmin(teamId) && uid != request.auth.uid;
+      }
+
+      // Built-in channels have no doc (keep in sync with DEFAULT_CHANNELS in app/src/api.ts);
+      // any member can add more, only the admin can delete them
+      function channelExists(channelId) {
+        return channelId in ['general', 'brainstorming', 'tasks', 'resources', 'random']
+          || exists(/databases/$(database)/documents/teams/$(teamId)/channels/$(channelId));
+      }
+
+      match /channels/{channelId} {
         allow read: if isMember(teamId);
-        allow create: if isMember(teamId) && request.resource.data.uid == request.auth.uid;
+        allow create: if isMember(teamId)
+          && request.resource.data.createdBy == request.auth.uid
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 30
+          && request.resource.data.emoji is string
+          && request.resource.data.emoji.size() <= 16;
+        allow delete: if isAdmin(teamId);
+      }
+
+      match /channels/{channelId}/messages/{messageId} {
+        function validMessage() {
+          let m = request.resource.data;
+          return m.uid == request.auth.uid
+            && m.name is string
+            && m.text is string && m.text.size() <= 4000
+            && ((m.type == 'text' && m.text.size() > 0)
+              || (m.type == 'image' && m.image is string && m.image.size() < 800000)
+              || (m.type == 'poll' && m.text.size() > 0
+                && m.options is list && m.options.size() >= 2 && m.options.size() <= 6
+                && m.votes == {}));
+        }
+        // A vote may only add, change or remove the caller's own entry in `votes`
+        function validVote() {
+          let before = resource.data;
+          let after = request.resource.data;
+          let mine = request.auth.uid;
+          return before.type == 'poll'
+            && after.diff(before).affectedKeys().hasOnly(['votes'])
+            && after.votes.diff(before.votes).affectedKeys().hasOnly([mine])
+            && (!(mine in after.votes)
+              || (after.votes[mine] is int && after.votes[mine] >= 0 && after.votes[mine] < before.options.size()));
+        }
+        // The author attaches the link preview once, right after sending
+        function validLinkPreview() {
+          return resource.data.uid == request.auth.uid
+            && !('link' in resource.data)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['link'])
+            && request.resource.data.link is map
+            && request.resource.data.link.keys().hasOnly(['url', 'title', 'description', 'image', 'site']);
+        }
+        allow read: if isMember(teamId);
+        allow create: if isMember(teamId)
+          && channelExists(channelId)
+          && validMessage();
+        allow update: if isMember(teamId) && (validVote() || validLinkPreview());
         allow delete: if signedIn() && (resource.data.uid == request.auth.uid || isAdmin(teamId));
       }
     }

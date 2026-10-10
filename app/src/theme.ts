@@ -2,8 +2,21 @@ import { createTheme } from '@mui/material/styles'
 
 export const theme = createTheme({
   colorSchemes: {
-    light: { palette: { primary: { main: '#5b4cf0' }, background: { default: '#f7f7fb' } } },
-    dark: { palette: { primary: { main: '#8b80ff' }, background: { default: '#0f0f14', paper: '#17171f' } } },
+    // Brand colors from the Assembly logo: violet #5b3df5, coral dot #ff6b5e
+    light: {
+      palette: {
+        primary: { main: '#5b3df5' },
+        secondary: { main: '#ff6b5e' },
+        background: { default: '#f7f7fb' },
+      },
+    },
+    dark: {
+      palette: {
+        primary: { main: '#8a73ff' },
+        secondary: { main: '#ff7f73' },
+        background: { default: '#0f0f14', paper: '#17171f' },
+      },
+    },
   },
   shape: { borderRadius: 12 },
   typography: {

@@ -11,8 +11,11 @@ export default function Share() {
   const [team, setTeam] = useState<Team | null>(null)
 
   useEffect(() => {
-    getTeam(teamId).then(setTeam)
-  }, [teamId])
+    getTeam(teamId)
+      .then((t) => (t ? setTeam(t) : navigate(`/t/${teamId}`, { replace: true })))
+      // The room page explains a missing or deleted team
+      .catch(() => navigate(`/t/${teamId}`, { replace: true }))
+  }, [teamId, navigate])
 
   if (!team) {
     return (
