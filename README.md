@@ -92,15 +92,3 @@ app/
 firestore.rules        Firestore security rules
 firebase.json          Firebase Hosting configuration
 ```
-
-## Commit Message Guidance
-
-Use clear, action-based commit messages:
-
-- `Improve README project overview`
-- `Add checklist channel UI`
-- `Add admin member controls`
-- `Fix unique name validation`
-- `Update PWA icons and manifest`
-
-Avoid placeholder messages like `hello`, `final`, or unclear typo-heavy notes. Existing GitHub commits can only be renamed by rewriting history, so prefer clean messages for future commits unless the branch is intentionally being rebased.
