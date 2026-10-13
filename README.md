@@ -24,18 +24,15 @@ The project won second place at Commit Athens, an ElevenLabs-sponsored hackathon
 - Admin controls for renaming teams, removing or banning members, deleting channels, and deleting teams
 - Mobile-first PWA setup with installable app icons and manifest
 
-## Screenshots
+## App Screenshots
 
-Add the final app screenshots under `docs/images/` and use clear filenames like:
+| Join A Team | Team Chat | Create Polls |
+|---|---|---|
+| ![Join a team](docs/images/team-join.jpg) | ![Team chat](docs/images/team-chat.jpg) | ![Create a poll](docs/images/create-poll.jpg) |
 
-- `home-create-team.png` for the team creation screen
-- `share-qr.png` for the QR invite screen
-- `room-chat.png` for the main room chat
-- `poll-message.png` for polls and voting
-- `todo-board.png` for checklist channels
-- `admin-controls.png` for team management
-
-Once those files are added, this section should show the images with short captions so visitors can understand the product without running it locally.
+| Claim Tasks | Assign Tasks | Invite By QR |
+|---|---|---|
+| ![Claim a task](docs/images/task-claim.jpg) | ![Assign tasks](docs/images/task-assignment.jpg) | ![Invite team members by QR code](docs/images/team-invite.jpg) |
 
 ## How It Works
 
