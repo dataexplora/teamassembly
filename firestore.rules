@@ -107,6 +107,7 @@ service cloud.firestore {
           return m.uid == request.auth.uid
             && m.name is string
             && m.text is string && m.text.size() <= 4000
+            && (!('reactions' in m) || m.reactions == {})
             && ((m.type == 'text' && m.text.size() > 0)
               || (m.type == 'image' && m.image is string && m.image.size() < 800000)
               || (m.type == 'poll' && m.text.size() > 0
@@ -124,6 +125,15 @@ service cloud.firestore {
             && (!(mine in after.votes)
               || (after.votes[mine] is int && after.votes[mine] >= 0 && after.votes[mine] < before.options.size()));
         }
+        // A member may only add, change, or remove their own message reaction.
+        function validReaction() {
+          let before = resource.data.get('reactions', {});
+          let after = request.resource.data.get('reactions', {});
+          let mine = request.auth.uid;
+          return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions'])
+            && after.diff(before).affectedKeys().hasOnly([mine])
+            && (!(mine in after) || after[mine] in ['👍', '❤️', '😂', '👀', '✅']);
+        }
         // The author attaches the link preview once, right after sending
         function validLinkPreview() {
           return resource.data.uid == request.auth.uid
@@ -136,7 +146,7 @@ service cloud.firestore {
         allow create: if isMember(teamId)
           && channelExists(channelId)
           && validMessage();
-        allow update: if isMember(teamId) && (validVote() || validLinkPreview());
+        allow update: if isMember(teamId) && (validVote() || validReaction() || validLinkPreview());
         allow delete: if signedIn() && (resource.data.uid == request.auth.uid || isAdmin(teamId));
       }
     }

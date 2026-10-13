@@ -42,9 +42,11 @@ import {
   leaveTeam,
   getTeam,
   joinTeam,
+  MESSAGE_REACTIONS,
   NameTakenError,
   sendMessage,
   sendPoll,
+  setMessageReaction,
   subscribeMembers,
   subscribeMessages,
   subscribeMyMembership,
@@ -53,6 +55,7 @@ import {
   type ChannelId,
   type Member,
   type Message,
+  type MessageReaction,
   type Team,
 } from '../api'
 import { auth } from '../firebase'
@@ -257,6 +260,49 @@ function JoinForm({ team, onJoined }: { team: Team; onJoined: (m: Member) => voi
   )
 }
 
+function MessageReactions({
+  message,
+  myUid,
+  mine,
+  onReact,
+}: {
+  message: Message
+  myUid: string
+  mine: boolean
+  onReact: (reaction: MessageReaction) => void
+}) {
+  const reactions = message.reactions ?? {}
+  const active = reactions[myUid]
+  const counts = MESSAGE_REACTIONS.map((reaction) => ({
+    reaction,
+    count: Object.values(reactions).filter((value) => value === reaction).length,
+  }))
+
+  return (
+    <Stack direction="row" spacing={0.5} sx={{ justifyContent: mine ? 'flex-end' : 'flex-start', mt: 0.5, px: 0.5, flexWrap: 'wrap' }}>
+      {counts.map(({ reaction, count }) => (
+        <Button
+          key={reaction}
+          size="small"
+          variant={active === reaction ? 'contained' : count > 0 ? 'outlined' : 'text'}
+          onClick={() => onReact(reaction)}
+          aria-label={`React with ${reaction}`}
+          sx={{
+            minWidth: 34,
+            height: 28,
+            px: 0.75,
+            borderRadius: 999,
+            fontSize: 13,
+            lineHeight: 1,
+          }}
+        >
+          {reaction}{count > 0 ? ` ${count}` : ''}
+        </Button>
+      ))}
+    </Stack>
+  )
+}
+
 type ChatProps = { team: Team; me: Member; onLeave: () => void; onDelete: () => void }
 
 function Chat({ team, me, onLeave, onDelete }: ChatProps) {
@@ -453,6 +499,17 @@ function Chat({ team, me, onLeave, onDelete }: ChatProps) {
                       {m.createdAt?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </Typography>
                   </Paper>
+                  <MessageReactions
+                    message={m}
+                    myUid={me.uid}
+                    mine={mine}
+                    onReact={(reaction) =>
+                      setMessageReaction(team.id, channel, m.id, m.reactions?.[me.uid] === reaction ? null : reaction).catch((err) => {
+                        console.error(err)
+                        setError('Reaction not saved.')
+                      })
+                    }
+                  />
                 </Box>
               </Box>
             )

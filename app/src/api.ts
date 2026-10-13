@@ -19,6 +19,9 @@ import {
 import { db, ensureUser } from './firebase'
 import { fetchLinkPreview, firstUrl, type LinkPreview } from './linkPreview'
 
+export const MESSAGE_REACTIONS = ['👍', '❤️', '😂', '👀', '✅'] as const
+export type MessageReaction = (typeof MESSAGE_REACTIONS)[number]
+
 export type Team = { id: string; name: string; createdBy: string }
 export type Member = { uid: string; name: string }
 export type Message = {
@@ -33,6 +36,8 @@ export type Message = {
   options?: string[]
   // uid -> chosen option index
   votes?: Record<string, number>
+  // uid -> emoji reaction, one reaction per member
+  reactions?: Record<string, MessageReaction>
   // OG preview of the first URL, fetched once by the sender
   link?: LinkPreview
   createdAt: Date | null
@@ -379,6 +384,7 @@ export function subscribeMessages(
           image: data.image,
           options: data.options,
           votes: data.votes,
+          reactions: data.reactions,
           link: data.link,
           createdAt: data.createdAt?.toDate() ?? null,
         }
@@ -401,6 +407,7 @@ export async function sendMessage(
     type: content.image ? 'image' : 'text',
     text,
     ...(content.image ? { image: content.image } : {}),
+    reactions: {},
     createdAt: serverTimestamp(),
   })
   // Fire and forget: the message is already sent, the preview card fills in when the scrape returns
@@ -427,6 +434,7 @@ export async function sendPoll(
     text: question.trim(),
     options: options.map((o) => o.trim()).filter(Boolean),
     votes: {},
+    reactions: {},
     createdAt: serverTimestamp(),
   })
 }
@@ -441,5 +449,17 @@ export async function vote(
   const user = await ensureUser()
   await updateDoc(doc(messagesRef(teamId, channel), messageId), {
     [`votes.${user.uid}`]: option === null ? deleteField() : option,
+  })
+}
+
+export async function setMessageReaction(
+  teamId: string,
+  channel: ChannelId,
+  messageId: string,
+  reaction: MessageReaction | null,
+): Promise<void> {
+  const user = await ensureUser()
+  await updateDoc(doc(messagesRef(teamId, channel), messageId), {
+    [`reactions.${user.uid}`]: reaction === null ? deleteField() : reaction,
   })
 }
