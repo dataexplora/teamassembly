@@ -92,3 +92,7 @@ app/
 firestore.rules        Firestore security rules
 firebase.json          Firebase Hosting configuration
 ```
+
+## License
+
+MIT. See [LICENSE](LICENSE).
