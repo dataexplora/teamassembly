@@ -360,14 +360,15 @@ function Chat({ team, me, onLeave, onDelete }: ChatProps) {
     e.target.value = ''
     if (!file) return
     setUploading(true)
+    // Whatever is typed goes along as the caption; it comes back if sending fails
+    const caption = text.trim()
     try {
       const image = await compressImage(file)
-      // Whatever is typed goes along as the caption
-      const caption = text.trim()
       setText('')
       await sendMessage(team.id, channel, me.name, { image, text: caption })
     } catch (err) {
       console.error(err)
+      setText((t) => t || caption)
       setError('Could not send that image.')
     } finally {
       setUploading(false)
@@ -548,6 +549,8 @@ function Chat({ team, me, onLeave, onDelete }: ChatProps) {
           multiline
           maxRows={4}
           onKeyDown={(e) => {
+            // Enter that confirms an input method's suggestion (Greek accents, Chinese, Japanese) is not a send
+            if (e.nativeEvent.isComposing || e.keyCode === 229) return
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault()
               onSend(e)

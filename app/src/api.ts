@@ -390,6 +390,9 @@ export function subscribeMessages(
         }
       }),
     )
+  }, (err) => {
+    // Expected when we are removed or the team is deleted; the room shows its own screen for that
+    if (err.code !== 'permission-denied') console.error(err)
   })
 }
 
